@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
     # Organizing the dataframe
     desired_columns = [
-        'Open DateTime', 'Opening Price', 'Type', 
+        'Open DateTime', 'Opening Price', 'Type', 'Volume',
         'S / L', 'T / P', 'Close DateTime', 'Closing Price'
     ]
     trade_data = trade_data[desired_columns]
@@ -40,6 +40,8 @@ if __name__ == "__main__":
     input_settings = {}
     input_settings["Candles Before"] = st.number_input('Candles Before Trade', min_value=0, value=5)
     input_settings["Candles After"] = st.number_input('Candles After Trade', min_value=0, value=5)
+    input_settings["Showing Position Lot Size"] = st.toggle('Show Position Lot Size?')
+    input_settings["Showing Hedges"] = st.toggle('Show Hedges?', value=True)
 
     rows, cols = trade_data.shape
     if rows != 0:
@@ -54,3 +56,5 @@ if __name__ == "__main__":
         for _ in range(3):
             st.write("")
         st.write("No trade selected")
+    
+    st.table(trade_data)

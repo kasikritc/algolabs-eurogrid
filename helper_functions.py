@@ -79,43 +79,9 @@ def add_price_markers(fig, start_dt, end_dt, open_price, close_price, trade_type
 
     return fig
 
-def add_tp_sl_lines(fig, start_dt, end_dt, tp_price, sl_price):
-    """Adds Take Profit and Stop Loss lines to the figure."""
-    # Add the TP and SL lines
-    fig.add_trace(go.Scatter(
-        x=[start_dt, end_dt],
-        y=[tp_price, tp_price],
-        mode='lines',
-        line=dict(color='green', width=2, dash='dot'),
-        name='Take Profit Line'
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=[start_dt, end_dt],
-        y=[sl_price, sl_price],
-        mode='lines',
-        line=dict(color='red', width=2, dash='dot'),
-        name='Stop Loss Line'
-    ))
-
-    mid_dt = start_dt + (end_dt - start_dt) / 2
-
-    # Add annotations for TP and SL lines
-    fig.add_annotation(
-        x=mid_dt,
-        y=tp_price,
-        text="TP",
-        showarrow=False,
-        bordercolor="green"
-    )
-    fig.add_annotation(
-        x=mid_dt,
-        y=sl_price,
-        text="SL",
-        showarrow=False,
-        bordercolor="red"
-    )
-
+def add_lot_sizes(fig, start_dt, end_dt, volume, open_price):
+    """Adds texts for position lot sizes to the figure."""
+    fig.add_annotation(text=str(volume), x=start_dt, y=open_price, align="left")
     return fig
 
 def create_candlestick_chart(tf_ohlc_data, selected_trades, selected_timeframe, input_settings):
@@ -137,10 +103,17 @@ def create_candlestick_chart(tf_ohlc_data, selected_trades, selected_timeframe, 
     # Create the candlestick figure and add markers and lines
     fig = create_candlestick_figure(filtered_data)
 
-    for index, trade in selected_trades.iterrows():
-        trade_start_datetime, trade_end_datetime = adjust_start_end_datetimes(trade["Open DateTime"], trade["Close DateTime"], timeframe_minutes[selected_timeframe], tf_ohlc_data)
-        fig = add_price_markers(fig, trade_start_datetime, trade_end_datetime, trade["Opening Price"], trade["Closing Price"], trade["Type"])
-        # fig = add_tp_sl_lines(fig, trade_start_datetime, trade_end_datetime, trade["T / P"], trade["S / L"])
+    if input_settings["Showing Hedges"]:
+        for index, trade in selected_trades.iterrows():
+            trade_start_datetime, trade_end_datetime = adjust_start_end_datetimes(trade["Open DateTime"], trade["Close DateTime"], timeframe_minutes[selected_timeframe], tf_ohlc_data)
+            fig = add_price_markers(fig, trade_start_datetime, trade_end_datetime, trade["Opening Price"], trade["Closing Price"], trade["Type"])
+            if input_settings["Showing Position Lot Size"]:
+                fig = add_lot_sizes(fig, trade_start_datetime, trade_end_datetime, trade["Volume"], trade["Opening Price"])
+    else:
+        trade_start_datetime, trade_end_datetime = adjust_start_end_datetimes(selected_trades.iloc[0]["Open DateTime"], selected_trades.iloc[0]["Close DateTime"], timeframe_minutes[selected_timeframe], tf_ohlc_data)
+        fig = add_price_markers(fig, trade_start_datetime, trade_end_datetime, selected_trades.iloc[0]["Opening Price"], selected_trades.iloc[0]["Closing Price"], selected_trades.iloc[0]["Type"])
+        if input_settings["Showing Position Lot Size"]:
+            fig = add_lot_sizes(fig, trade_start_datetime, trade_end_datetime, selected_trades.iloc[0]["Volume"], selected_trades.iloc[0]["Opening Price"])
     
     fig.update_layout(
         title={
