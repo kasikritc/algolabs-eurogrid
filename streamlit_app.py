@@ -4,9 +4,9 @@ import datetime
 from helper_functions import *
 
 if __name__ == "__main__":
-    st.title('Trade Data and Candlestick Chart Viewer')
+    st.title('EuroGrid Trade Viewer')
 
-    trade_numbers_input = st.text_input('Enter trade numbers separated by commas in ascending order (e.g., 0, 94, 203)')
+    trade_numbers_input = st.text_input('Enter trade numbers separated by commas in ascending order (e.g., 0, 94, 203)', value="0")
     try:
         if trade_numbers_input == "":
             raise ValueError("Enter trade number(s)")
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # Add radio button for timeframe selection
     selected_timeframe = st.radio(
         "Select Timeframe",
-        ('1M', '5M', '15M', '1H', '4H', '1D')
+        ('1M', '5M', '15M', '1H', '4H', '1D'),
     )
 
     # Map the selection to the corresponding file
@@ -59,11 +59,11 @@ if __name__ == "__main__":
     input_settings["Showing Hedges"] = st.toggle('Show Hedges?', value=True)
 
     # Indicator settings
-    input_settings["Display RSI?"] = st.toggle("Display RSI?", value=True)
+    input_settings["Display RSI?"] = st.toggle("Display RSI?", value=False)
     if input_settings["Display RSI?"]:
         input_settings["RSI Length"] = st.number_input("RSI Length", value=21, min_value=1)
 
-    input_settings["Display Bollinger Bands?"] = st.toggle('Display Bollinger Bands?', value=True)
+    input_settings["Display Bollinger Bands?"] = st.toggle('Display Bollinger Bands?', value=False)
     if input_settings["Display Bollinger Bands?"]:
         input_settings["Bollinger Bands Period"] = st.number_input('Bollinger Bands Period', min_value=1, value=20)
         input_settings["Bollinger Bands Std. Dev"] = st.number_input('Bollinger Bands Std. Dev', value=2)
