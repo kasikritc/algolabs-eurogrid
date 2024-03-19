@@ -16,6 +16,10 @@ def load_tick_data(file_path):
     tf_ohlc_data.set_index('DateTime', inplace=True)
     return tf_ohlc_data
 
+def filter_initial_trades(df):
+    initial_trades = df.groupby('Close DateTime').first().reset_index()
+    return initial_trades
+
 def align_datetime_to_candle(dt, timeframe):
     """Aligns datetime to the start of the candlestick based on the timeframe."""
     if timeframe == 1:
@@ -94,6 +98,7 @@ def create_candlestick_chart(tf_ohlc_data, selected_trades, selected_timeframe, 
         '4H': 240,
         '1D': 1440
     }
+
     first_trade_start_datetime, last_trade_end_datetime = adjust_start_end_datetimes(selected_trades["Open DateTime"].iloc[0], selected_trades["Close DateTime"].iloc[-1], timeframe_minutes[selected_timeframe], tf_ohlc_data)
 
     # Filter the data for the chart
@@ -103,17 +108,11 @@ def create_candlestick_chart(tf_ohlc_data, selected_trades, selected_timeframe, 
     # Create the candlestick figure and add markers and lines
     fig = create_candlestick_figure(filtered_data)
 
-    if input_settings["Showing Hedges"]:
-        for index, trade in selected_trades.iterrows():
-            trade_start_datetime, trade_end_datetime = adjust_start_end_datetimes(trade["Open DateTime"], trade["Close DateTime"], timeframe_minutes[selected_timeframe], tf_ohlc_data)
-            fig = add_price_markers(fig, trade_start_datetime, trade_end_datetime, trade["Opening Price"], trade["Closing Price"], trade["Type"])
-            if input_settings["Showing Position Lot Size"]:
-                fig = add_lot_sizes(fig, trade_start_datetime, trade_end_datetime, trade["Volume"], trade["Opening Price"])
-    else:
-        trade_start_datetime, trade_end_datetime = adjust_start_end_datetimes(selected_trades.iloc[0]["Open DateTime"], selected_trades.iloc[0]["Close DateTime"], timeframe_minutes[selected_timeframe], tf_ohlc_data)
-        fig = add_price_markers(fig, trade_start_datetime, trade_end_datetime, selected_trades.iloc[0]["Opening Price"], selected_trades.iloc[0]["Closing Price"], selected_trades.iloc[0]["Type"])
+    for index, trade in selected_trades.iterrows():
+        trade_start_datetime, trade_end_datetime = adjust_start_end_datetimes(trade["Open DateTime"], trade["Close DateTime"], timeframe_minutes[selected_timeframe], tf_ohlc_data)
+        fig = add_price_markers(fig, trade_start_datetime, trade_end_datetime, trade["Opening Price"], trade["Closing Price"], trade["Type"])
         if input_settings["Showing Position Lot Size"]:
-            fig = add_lot_sizes(fig, trade_start_datetime, trade_end_datetime, selected_trades.iloc[0]["Volume"], selected_trades.iloc[0]["Opening Price"])
+            fig = add_lot_sizes(fig, trade_start_datetime, trade_end_datetime, trade["Volume"], trade["Opening Price"])
     
     fig.update_layout(
         title={
@@ -127,4 +126,86 @@ def create_candlestick_chart(tf_ohlc_data, selected_trades, selected_timeframe, 
         xaxis_rangeslider_visible=False,
         showlegend=False
     )
+
+    if input_settings["Display RSI?"]:
+        fig = add_rsi(fig, tf_ohlc_data, chart_start_datetime, chart_end_datetime, timeframe_minutes[selected_timeframe], input_settings["RSI Length"])
+
+    if input_settings["Display Bollinger Bands?"]:
+        upper_band, middle_band, lower_band = calculate_bollinger_bands(tf_ohlc_data, input_settings["Bollinger Bands Period"], input_settings["Bollinger Bands Std. Dev"])
+        fig = add_bollinger_bands(fig, upper_band, middle_band, lower_band, chart_start_datetime, chart_end_datetime)
+    
+    # Remove gaps from chart
+    fig.update_layout(xaxis_type='category')
+
+    return fig
+
+def calculate_rsi(data, period):
+    delta = data['Close'].diff()
+    gain = ((delta > 0) * delta).fillna(0)
+    loss = ((delta < 0) * -delta).fillna(0)
+
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def add_rsi(fig, tf_ohlc_data, chart_start_datetime, chart_end_datetime, timeframe_minutes, period):
+    # Calculate RSI
+    start_rsi_datetime = chart_start_datetime - pd.Timedelta(minutes=timeframe_minutes * period)
+    rsi = calculate_rsi(tf_ohlc_data.loc[start_rsi_datetime:chart_end_datetime], period)
+    rsi = rsi[chart_start_datetime:chart_end_datetime]
+
+    # Create a subplot with 2 rows
+    new_fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, 
+                        row_heights=[0.75, 0.25])
+
+    # Move existing traces to the new subplot
+    for trace in fig.data:
+        new_fig.add_trace(trace, row=1, col=1)
+
+    # Copy annotations to the new figure, adjusting the yref to the new subplot if necessary
+    if fig.layout.annotations:
+        for annotation in fig.layout.annotations:
+            new_fig.add_annotation(annotation, row=1, col=1)
+        
+    # Add RSI trace to the second subplot
+    new_fig.add_trace(
+        go.Scatter(x=rsi.index, y=rsi, mode='lines', name='RSI', line=dict(color='cyan', width=2),),
+        row=2, col=1
+    )
+
+    # Customize layout for RSI subplot
+    new_fig.update_yaxes(title_text='Price', row=1, col=1)
+    new_fig.update_yaxes(title_text='RSI', row=2, col=1)
+    new_fig.update_xaxes(title_text='Time', row=2, col=1)
+    new_fig.update_layout(xaxis2_type='category', # Remove gaps from RSI chart
+                          title={
+                                'text': 'Trade Progress',
+                                'x':0.5,
+                                'xanchor': 'center',
+                                'yanchor': 'top'
+                            },
+                          xaxis1_rangeslider_visible=False, 
+                          showlegend=False)
+    return new_fig
+
+def calculate_bollinger_bands(data, period=20, num_of_std=2):
+    middle_band = data['Close'].rolling(window=period).mean()
+    std_dev = data['Close'].rolling(window=period).std()
+    upper_band = middle_band + (std_dev * num_of_std)
+    lower_band = middle_band - (std_dev * num_of_std)
+    
+    return upper_band, middle_band, lower_band
+
+def add_bollinger_bands(fig, upper_band, middle_band, lower_band, start_datetime, end_datetime):
+    upper_band = upper_band[start_datetime:end_datetime]
+    middle_band = middle_band[start_datetime:end_datetime]
+    lower_band = lower_band[start_datetime:end_datetime]
+    
+    fig.add_trace(go.Scatter(x=upper_band.index, y=upper_band, line=dict(color='rgba(76, 175, 80, 0.5)'), name='Upper Bollinger Band'))
+    fig.add_trace(go.Scatter(x=middle_band.index, y=middle_band, line=dict(color='rgba(240, 173, 78, 0.5)'), name='Middle Bollinger Band'))
+    fig.add_trace(go.Scatter(x=lower_band.index, y=lower_band, line=dict(color='rgba(76, 175, 80, 0.5)'), name='Lower Bollinger Band'))
+    
     return fig
