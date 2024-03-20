@@ -4,6 +4,22 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import datetime
 
+def parse_trade_number_input(input_string):
+    """
+    Parses the trade number input string and returns a list of trade numbers.
+    Supports individual numbers and ranges (e.g., '0-19, 24-25, 98').
+    """
+    trade_numbers = []
+    for part in input_string.split(','):
+        if '-' in part:
+            start, end = map(int, part.split('-'))
+            if start > end:
+                raise ValueError(f"Invalid range: {start}-{end}. Start must be less than end.")
+            trade_numbers.extend(range(start, end + 1))
+        else:
+            trade_numbers.append(int(part.strip()))
+    return trade_numbers
+
 def load_trade_data(file_path):
     trade_data = pd.read_csv(file_path)
     trade_data['Open DateTime'] = pd.to_datetime(trade_data['Open Time'], format='%Y-%m-%d %H:%M:%S')
@@ -178,7 +194,7 @@ def add_rsi(fig, tf_ohlc_data, chart_start_datetime, chart_end_datetime, timefra
 
     # Customize layout for RSI subplot
     new_fig.update_yaxes(title_text='Price', row=1, col=1)
-    new_fig.update_yaxes(title_text='RSI', row=2, col=1)
+    new_fig.update_yaxes(title_text='RSI', range=[0, 100], fixedrange=True, row=2, col=1)
     new_fig.update_xaxes(title_text='Time', row=2, col=1)
     new_fig.update_layout(xaxis2_type='category', # Remove gaps from RSI chart
                           title={

@@ -6,13 +6,12 @@ from helper_functions import *
 if __name__ == "__main__":
     st.title('EuroGrid Trade Viewer')
 
-    trade_numbers_input = st.text_input('Enter trade numbers separated by commas in ascending order (e.g., 0, 94, 203)', value="0")
+    trade_numbers_input = st.text_input('Enter trade sequence numbers from 0 to 1758', value="0")
     try:
         if trade_numbers_input == "":
             raise ValueError("Enter trade number(s)")
-        trade_numbers = [int(x.strip()) for x in trade_numbers_input.split(',')]
-        if trade_numbers != sorted(trade_numbers):
-            raise ValueError("Trade numbers must be in ascending order.")
+        trade_numbers = parse_trade_number_input(trade_numbers_input)
+        trade_numbers = sorted(set(trade_numbers))
     except ValueError as e:
         st.error(f"Invalid input: {e}")
         st.stop()
@@ -80,5 +79,36 @@ if __name__ == "__main__":
         input_settings
     )
     st.plotly_chart(chart, use_container_width=True)
+
+    if input_settings["Showing Hedges"]:
+        # Calculating unweighted averages
+        unweighted_average_opening_price = trade_agg_data["Opening Price"].mean()
+        unweighted_average_closing_price = trade_agg_data["Closing Price"].mean()
+
+        # Calculating lot size-weighted averages
+        weighted_average_opening_price = (trade_agg_data["Opening Price"] * trade_agg_data["Volume"]).sum() / trade_agg_data["Volume"].sum()
+        weighted_average_closing_price = (trade_agg_data["Closing Price"] * trade_agg_data["Volume"]).sum() / trade_agg_data["Volume"].sum()
+
+        # Calculating differences
+        unweighted_difference = unweighted_average_closing_price - unweighted_average_opening_price
+        weighted_difference = weighted_average_closing_price - weighted_average_opening_price
+
+        # Creating the DataFrame
+        average_price_data_df = pd.DataFrame({
+            'Open Price': {
+                'Unweighted': unweighted_average_opening_price,
+                'Lotsize-weighted': weighted_average_opening_price
+            },
+            'Closing Price': {
+                'Unweighted': unweighted_average_closing_price,
+                'Lotsize-weighted': weighted_average_closing_price
+            },
+            'Difference': {
+                'Unweighted': unweighted_difference,
+                'Lotsize-weighted': weighted_difference
+            }
+        })
+
+        st.table(average_price_data_df)
 
     st.table(trade_agg_data)
